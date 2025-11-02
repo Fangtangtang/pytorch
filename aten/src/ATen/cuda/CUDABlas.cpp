@@ -16,6 +16,12 @@
 #include <c10/util/irange.h>
 #include <c10/core/ScalarType.h>
 
+// --- 添加以下内容 ---
+#include <ATen/kernelmanager/KernelManager.h> // 包含内核管理器
+#include <ATen/kernelmanager/GemmInternalCublasBF16Kernel.h>  // 包含我们特定的 GEMM 内核
+#include <memory>         // 包含 std::make_unique
+// --- 添加结束 ---
+
 #ifdef USE_ROCM
 #include <hipblaslt/hipblaslt-ext.hpp>
 // until hipblas has an API to accept flags, we must use rocblas here
@@ -514,6 +520,7 @@ static inline bool bgemm_internal_cublaslt(CUDABLAS_BGEMM_ARGTYPES_AND_C_DTYPE(D
     cublasStatus = CUBLAS_STATUS_NOT_SUPPORTED;
   }
   else {
+    // 这个地方打印了，没啥用
     cublasStatus = cublasLtMatmul(
       ltHandle,
       computeDesc.descriptor(),
@@ -1149,6 +1156,7 @@ inline void gemm_internal_cublas_half_helper(CUDABLAS_GEMM_ARGTYPES_AND_C_DTYPE(
     }
     // Disallow fp16 reductions that could lead to unexpected overflow issues.
     TORCH_CUDABLAS_CHECK(cublasSetMathMode(handle, cublas_flags));
+    // 这里也没用
     TORCH_CUDABLAS_CHECK(cublasGemmEx(
         handle,
         opa,
@@ -1214,28 +1222,50 @@ inline void gemm_internal_cublas_bfloat16_helper(CUDABLAS_GEMM_ARGTYPES_AND_C_DT
 #else
   auto compute_type = CUDA_R_32F;
 #endif
-  TORCH_CUDABLAS_CHECK(cublasSetMathMode(handle, cublas_flags));
-  TORCH_CUDABLAS_CHECK(cublasGemmEx(
+
+  auto kernel_to_enqueue = std::make_unique<GemmInternalCublasBF16Kernel<C_Dtype>>(
       handle,
       opa,
       opb,
       m,
       n,
       k,
-      &falpha,
+      falpha, // 传递 falpha 的值
       a,
-      CUDA_R_16BF,
       lda,
       b,
-      CUDA_R_16BF,
       ldb,
-      &fbeta,
+      fbeta,  // 传递 fbeta 的值
       c,
-      std::is_same_v<C_Dtype, float> ? CUDA_R_32F : CUDA_R_16BF,
       ldc,
       compute_type,
-      CUBLAS_GEMM_DEFAULT_TENSOR_OP));
-  TORCH_CUDABLAS_CHECK(cublasSetMathMode(handle, CUBLAS_DEFAULT_MATH));
+      cublas_flags
+  );
+  KernelManager::getInstance().enqueue(std::move(kernel_to_enqueue));
+//   TORCH_CUDABLAS_CHECK(cublasSetMathMode(handle, cublas_flags));
+//   //KERNEL HOOKED
+//   printf("gemm_internal_cublas_bfloat16_helper: m=%ld, n=%ld, k=%ld, lda=%ld, ldb=%ld, ldc=%ld\n", m, n, k, lda, ldb, ldc);
+//   TORCH_CUDABLAS_CHECK(cublasGemmEx(
+//       handle,
+//       opa,
+//       opb,
+//       m,
+//       n,
+//       k,
+//       &falpha,
+//       a,
+//       CUDA_R_16BF,
+//       lda,
+//       b,
+//       CUDA_R_16BF,
+//       ldb,
+//       &fbeta,
+//       c,
+//       std::is_same_v<C_Dtype, float> ? CUDA_R_32F : CUDA_R_16BF,
+//       ldc,
+//       compute_type,
+//       CUBLAS_GEMM_DEFAULT_TENSOR_OP));
+//   TORCH_CUDABLAS_CHECK(cublasSetMathMode(handle, CUBLAS_DEFAULT_MATH));
 }
 
 template <>
@@ -1687,6 +1717,7 @@ bool gemm_and_bias(
     cublasStatus = CUBLAS_STATUS_NOT_SUPPORTED;
   }
   else {
+    // 这里 HOOKED 没用
     cublasStatus = cublasLtMatmul(
       ltHandle,
       computeDesc.descriptor(),
@@ -2007,6 +2038,8 @@ void scaled_gemm(
     TORCH_CHECK(found, "could not find valid hipblaslt solution");
 #endif // ifndef USE_ROCM
   }
+  // 不在这里
+  // printf("cublasLtMatmul\n");
   cublasStatus_t cublasStatus = cublasLtMatmul(
       ltHandle,
       computeDesc.descriptor(),
@@ -2122,7 +2155,8 @@ void int8_gemm(
     TORCH_CUDABLAS_CHECK(CUBLAS_STATUS_NOT_SUPPORTED);
   }
 #endif
-
+  // 不在这里
+  // printf("cublasLtMatmul int8\n");
   cublasStatus_t cublasStatus = cublasLtMatmul(
       ltHandle,
       computeDesc.descriptor(),

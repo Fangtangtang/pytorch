@@ -49,6 +49,8 @@ static void launch_kernel(const int64_t N, const func_t& f) {
   const dim3 block(nt);
   const dim3 grid((N + block.x * vt - 1) / (block.x * vt));
   const auto stream = at::cuda::getCurrentCUDAStream();
+  // KERNEL HOOKED
+  // printf("Launching index_elementwise_kernel with grid (%d), block (%d)\n", grid.x, block.x);
   index_elementwise_kernel<nt, vt, func_t><<<grid, block, 0, stream>>>(N, f);
   C10_CUDA_KERNEL_LAUNCH_CHECK();
 }

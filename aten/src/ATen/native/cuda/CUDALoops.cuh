@@ -317,6 +317,8 @@ static inline void launch_vectorized_kernel(
 #endif
   int bws = tws * num_threads();
   int64_t grid = (N + bws - 1) / bws;
+  // KERNEL HOOKED
+  // printf("launch_vectorized_kernel vec_size=%d io_size=%d tws=%d bws=%d grid=%d\n", vec_size, io_size, tws, bws, grid);
   switch (vec_size) {
 #ifdef USE_ROCM
     case 16:
