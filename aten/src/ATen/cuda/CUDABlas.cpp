@@ -1240,7 +1240,8 @@ inline void gemm_internal_cublas_bfloat16_helper(CUDABLAS_GEMM_ARGTYPES_AND_C_DT
       compute_type,
       CUBLAS_GEMM_DEFAULT_TENSOR_OP
   );
-  // KernelManager::getInstance().enqueue(std::move(kernel_to_enqueue));
+  KernelManager::getInstance().enqueue(std::move(kernel_to_enqueue));
+  
 //   TORCH_CUDABLAS_CHECK(cublasSetMathMode(handle, cublas_flags));
 //   //KERNEL HOOKED
 //   printf("gemm_internal_cublas_bfloat16_helper: m=%ld, n=%ld, k=%ld, lda=%ld, ldb=%ld, ldc=%ld\n", m, n, k, lda, ldb, ldc);
